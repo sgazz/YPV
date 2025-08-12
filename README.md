@@ -1,23 +1,27 @@
-# XOArena3D - 3D Igra u Godot-u
+# XOArena3D - 3D Skakač s Motkom
 
-Jednostavna 3D igra napravljena u Godot 4.4 engine-u.
+3D platformer igra sa skakačem s motkom napravljena u Godot 4.4 engine-u.
 
 ## Opis igre
 
-XOArena3D je 3D platformer igra gde igrač kontroliše karakter koji se može kretati po 3D prostoru. Cilj je da skupite što više poena kretanjem po areni.
+XOArena3D je 3D platformer igra gde igrač kontroliše skakača s motkom koji se može kretati po 3D prostoru. Koristite motku za spektakularne skokove preko prepreka i skupite što više poena!
 
 ## Kontrole
 
 - **WASD** ili **Strelicama** - Kretanje (napred, levo, nazad, desno)
-- **SPACE** - Skakanje (pritisnite dok ste na platformi)
+- **Desni klik miša** - Trčanje (veća brzina)
+- **SPACE** - Običan skok
+- **Levi klik miša** - Skakanje s motkom (potrebna brzina trčanja)
 - **Miš** - Rotacija kamere (pogled)
 - **ESC** - Oslobađanje/zatvaranje miša
 
 ## Funkcionalnosti
 
 - **3D kretanje** - Igrač se može kretati u svim pravcima
-- **Skakanje** - Možete skakati preko prepreka
-- **Sistem bodovanja** - Dobijate poene za kretanje
+- **Trčanje** - Desni klik miša za veću brzinu kretanja
+- **Običan skok** - SPACE za jednostavan skok
+- **Skakanje s motkom** - Levi klik miša za spektakularne skokove s motkom
+- **Sistem bodovanja** - Dobijate poene za kretanje i bonus za skakanje s motkom
 - **Prepreke** - Različite boje kutija kao prepreke
 - **Fizika** - Realistična gravitacija i kolizije
 - **Kamera** - Prva osoba kamera koja prati igrača
