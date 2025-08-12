@@ -234,10 +234,10 @@ func create_2d_platforms():
 		var platform = create_platform(platform_positions[i], "Platform" + str(i))
 		get_node(".").add_child(platform)
 
-func create_platform(position: Vector3, name: String) -> StaticBody3D:
+func create_platform(platform_pos: Vector3, platform_name: String) -> StaticBody3D:
 	var platform = StaticBody3D.new()
-	platform.name = name
-	platform.position = position
+	platform.name = platform_name
+	platform.position = platform_pos
 	
 	var mesh = CSGBox3D.new()
 	mesh.size = Vector3(3, 1, 10)  # Široka platforma za side-view
