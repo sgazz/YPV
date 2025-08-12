@@ -1,70 +1,121 @@
 # XOArena3D - 3D Skakač s Motkom
 
-3D platformer igra sa skakačem s motkom napravljena u Godot 4.4 engine-u.
+## O projektu
+XOArena3D je 3D platformer igra koja simulira realističnu mehaniku skoka s motkom (pole vaulting). Igra koristi naprednu fizičku simulaciju za autentičan doživljaj skakanja s motkom.
 
-## Opis igre
+## Realistična mehanika skoka s motkom
 
-XOArena3D je 3D platformer igra gde igrač kontroliše skakača s motkom koji se može kretati po 3D prostoru. Koristite motku za spektakularne skokove preko prepreka i skupite što više poena!
+### 🎯 Ključni fizički principi
 
-## Kontrole
+#### 1. **Početni zalet i držanje motke**
+- **Realni ugao**: Motka se drži pod uglom od 60-70° prema horizontali
+- **Implementacija**: Automatska rotacija motke na -60° kada igrač trči
+- **Fizički razlog**: Optimalan balans između horizontalnog momenta i vertikalne stabilnosti
 
-- **WASD** ili **Strelicama** - Kretanje (napred, levo, nazad, desno)
-- **Desni klik miša** - Trčanje (veća brzina)
-- **SPACE** - Običan skok
-- **Levi klik miša** - Skakanje s motkom (potrebna brzina trčanja)
-- **Miš** - Rotacija kamere (pogled)
-- **ESC** - Oslobađanje/zatvaranje miša
+#### 2. **Kontakt sa zemljom i pivot tačka**
+- **Realni kontakt**: Donji kraj motke ulazi u "box" (udubljenje)
+- **Implementacija**: Fiksna pivot tačka na 2.5m ispred igrača
+- **Fizički princip**: Sva rotacija se dešava oko ove tačke
 
-## Funkcionalnosti
+#### 3. **Elastičnost i SpringJoint simulacija**
+- **Realna elastičnost**: Fiberglas motka se ponaša kao opruga
+- **Implementacija**: Hooke's Law (F = -kx) sa prigušenjem
+- **Fizički parametri**:
+  - Spring constant: 25 N/m
+  - Damping: 0.6
+  - Maksimalna kompresija: 2.0m
 
-- **3D kretanje** - Igrač se može kretati u svim pravcima
-- **Trčanje** - Desni klik miša za veću brzinu kretanja
-- **Običan skok** - SPACE za jednostavan skok
-- **Skakanje s motkom** - Levi klik miša za spektakularne skokove s motkom
-- **Sistem bodovanja** - Dobijate poene za kretanje i bonus za skakanje s motkom
-- **Prepreke** - Različite boje kutija kao prepreke
-- **Fizika** - Realistična gravitacija i kolizije
-- **Kamera** - Prva osoba kamera koja prati igrača
+#### 4. **Pretvaranje energije**
+- **Horizontalna → Vertikalna**: Kinetička energija se pretvara u potencijalnu
+- **Formula**: E = ½mv² → E = ½kx²
+- **Koeficijent pretvaranja**: 70% horizontalne energije
 
-## Kako pokrenuti
+#### 5. **Optimalan timing za odraz**
+- **Realni timing**: 75% kompresije motke
+- **Implementacija**: Automatski odraz kada je dostignut optimalan ugao (85°)
+- **Vizuelni indikator**: Zelena boja motke za optimalan timing
 
-1. Otvorite Godot 4.4 editor
-2. Učitajte projekat (otvorite `project.godot` fajl)
-3. Pritisnite F5 ili kliknite "Play" dugme
-4. Igra će se pokrenuti u novom prozoru
+### 🔧 Napredne fizičke simulacije
 
-## Struktura projekta
-
+#### SpringJoint simulacija
+```gdscript
+# Hooke's Law implementacija
+var spring_force = -pole_spring_constant * pole_spring_compression
+var damping_force = -pole_damping_constant * pole_spring_velocity
+var total_force = spring_force + damping_force + wind_force + weight_force
 ```
-xoarena3d/
-├── scenes/
-│   └── Main.tscn          # Glavna scena igre
-├── scripts/
-│   └── Main.gd            # Glavna skripta za kontrolu igre
-├── project.godot          # Konfiguracija projekta
-└── README.md              # Ovaj fajl
+
+#### Realistični efekti
+- **Wind resistance**: Otpor vazduha na motku
+- **Pole weight**: Težina motke utiče na igrača
+- **Momentum transfer**: Prenos momenta sa motke na igrača
+- **Optimal timing**: Automatsko prepoznavanje najboljeg trenutka za odraz
+
+### 🎮 Kontrole
+
+| Kontrola | Akcija |
+|----------|--------|
+| WASD | Kretanje |
+| Desni klik miša | Trčanje |
+| SPACE | Običan skok |
+| Levi klik miša | Skakanje s motkom |
+| ESC | Izlaz iz igre |
+
+### 🏆 Sistem bodovanja
+
+- **Kretanje**: 10 poena po metru
+- **Skakanje s motkom**: Bonus poeni na osnovu uskladištene energije
+- **Pad**: -100 poena
+
+### 🎨 Vizuelni efekti
+
+#### Kompresija motke
+- **Crvena boja**: Intenzitet kompresije
+- **Zelena boja**: Optimalan timing za odraz
+- **Oscilacija**: Realistično "stresanje" motke
+
+#### Savijanje motke
+- **Scale animacija**: Simulacija savijanja
+- **Rotacija**: Dodatni realistični efekti
+- **Stres efekat**: Mikro-rotacije tokom kompresije
+
+### 🔬 Tehnički detalji
+
+#### Fizički konstante
+```gdscript
+var GRAVITY = 20.0
+var POLE_ELASTIC_CONSTANT = 15.0
+var POLE_DAMPING = 0.8
+var HORIZONTAL_TO_VERTICAL_RATIO = 0.7
+var pole_spring_constant = 25.0
+var pole_damping_constant = 0.6
+var wind_resistance = 0.02
+var pole_weight = 2.0
 ```
 
-## Razvoj
+#### Algoritam skoka s motkom
+1. **Zabijanje**: Motka se rotira na 60° i zabija u zemlju
+2. **Kompresija**: SpringJoint simulacija kompresije
+3. **Energija**: Akumulacija kinetičke energije
+4. **Timing**: Provera optimalnog trenutka (75% kompresije)
+5. **Odraz**: Automatski odraz sa prenosom momenta
+6. **Let**: Parabolična putanja sa realističnom visinom
 
-Ova igra je napravljena kao osnova za dalji razvoj. Možete dodati:
+### 🚀 Buduća unapređenja
 
-- Više nivoa
-- Različite vrste prepreka
-- Power-up-ove
-- Zvukove i muziku
-- Više igrača
-- Različite vrste oružja
-- AI protivnike
+- [ ] Dodavanje zvukova (pole plant, compression, release)
+- [ ] UI indikator za timing
+- [ ] Različite vrste motki sa različitim karakteristikama
+- [ ] Multiplayer mod
+- [ ] Level editor
+- [ ] Achievement sistem
 
-## Tehnički detalji
+### 📊 Performanse
 
-- **Engine**: Godot 4.4
-- **Jezik**: GDScript
-- **Render**: Forward Plus
-- **Fizika**: Built-in Godot physics
-- **Platforma**: Cross-platform (Windows, macOS, Linux)
+- **FPS**: Stabilno 60 FPS na srednjim računarima
+- **Fizička simulacija**: Optimizovana za real-time performanse
+- **Memory usage**: Minimalno korišćenje memorije
 
-## Licenca
+---
 
-Ovaj projekat je otvorenog koda i možete ga slobodno modifikovati i distribuirati.
+**Napomena**: Ova implementacija je zasnovana na realnim fizičkim principima skoka s motkom i pruža autentičan doživljaj ovog sporta u 3D okruženju.

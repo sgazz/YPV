@@ -5,66 +5,66 @@ extends Node3D
 @onready var score_label = $UI/ScoreLabel
 @onready var pole = $Player/Pole
 
-var player_speed = 5.0
-var jump_force = 10.0
+# Podešavanja kretanja
+@export var walk_speed: float = 5.0
+@export var run_speed: float = 10.0
+@export var gravity: float = -20.0
+@export var vault_power: float = 12.0
+@export var pole_rotate_speed: float = 120.0
+
+# Stanja
+var is_vaulting = false
+var pole_angle = 60.0  # Promenjen smer - pozitivan ugao za side-view
 var mouse_sensitivity = 0.002
 var camera_rotation = 0.0
 var score = 0
 var last_position = Vector3.ZERO
 
-# Pole vaulting variables
-var pole_vault_speed = 15.0
-var pole_vault_height = 8.0
-var is_pole_vaulting = false
-var pole_vault_start_pos = Vector3.ZERO
-var pole_vault_target = Vector3.ZERO
-var pole_vault_progress = 0.0
-var running_speed = 0.0
-var is_running = false
-
-# Pole animation variables
-var pole_plant_progress = 0.0
-var is_pole_planting = false
-var pole_plant_start_pos = Vector3.ZERO
-var pole_plant_target_pos = Vector3.ZERO
-var pole_bend_amount = 0.0
-var pole_original_length = 4.0
-
-# Pole flexibility variables
-var pole_flexibility = 0.8  # Koeficijent savitljivosti (0-1)
-var pole_compression = 0.0  # Stepen kompresije motke
-var pole_elastic_force = 0.0  # Elastična sila motke
-var pole_ground_contact = false  # Da li motka dodiruje zemlju
+# Debug varijable
+var show_timing_indicator = true
+var timing_indicator_color = Color.GREEN
 
 func _ready():
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	last_position = player.global_position
 	update_score_display()
 	
-	# Konfigurišemo CharacterBody3D za bolje skakanje
+	# Konfigurišemo CharacterBody3D
 	player.floor_max_angle = 0.785398  # 45 stepeni
 	player.floor_snap_length = 0.3
 	player.floor_block_on_wall = true
 	
-	# Osiguravamo da je motka u pravilnoj poziciji
-	pole.position = Vector3(0, 1, -2)
-	pole.rotation = Vector3.ZERO
+	# Postavljamo početnu poziciju motke
+	pole.position = Vector3(3, 1, 0)  # Pomeramo motku 3 jedinice ispred igrača (X osa)
+	pole.rotation_degrees = Vector3(0, 0, pole_angle)  # Rotacija oko Z osi za side-view
 	pole.scale = Vector3(1, 1, 1)
 	
-	# Resetujemo varijable za savitljivost
-	pole_compression = 0.0
-	pole_elastic_force = 0.0
-	pole_ground_contact = false
+	# Osiguravamo da je motka vidljiva
+	pole.visible = true
+	pole.get_node("PoleMesh").visible = true
+	pole.get_node("PoleTip").visible = true
+	
+	# Postavljamo side-view kameru
+	setup_side_view_camera()
+	
+	print("XOArena3D: Igra je uspešno inicijalizovana")
+	print("XOArena3D: Motka je postavljena na poziciju: ", pole.position)
+	print("XOArena3D: Motka je vidljiva: ", pole.visible)
+	print("XOArena3D: Kamera je na poziciji: ", camera.global_position)
+	print("XOArena3D: Udaljenost motke od kamere: ", pole.global_position.distance_to(camera.global_position))
+	print("XOArena3D: Pole angle: ", pole_angle)
+	print("XOArena3D: Pole rotation: ", pole.rotation_degrees)
 
 func _input(event):
-	if event is InputEventMouseMotion:
-		# Rotacija kamere levo-desno
-		player.rotate_y(-event.relative.x * mouse_sensitivity)
-		
-		# Rotacija kamere gore-dole
-		camera_rotation -= event.relative.y * mouse_sensitivity
-		camera_rotation = clamp(camera_rotation, -PI/2, PI/2)
-		camera.rotation.x = camera_rotation
+	# Uklanjamo rotaciju kamere jer je sada side-view
+	# if event is InputEventMouseMotion:
+	# 	# Rotacija kamere levo-desno
+	# 	player.rotate_y(-event.relative.x * mouse_sensitivity)
+	# 	
+	# 	# Rotacija kamere gore-dole
+	# 	camera_rotation -= event.relative.y * mouse_sensitivity
+	# 	camera_rotation = clamp(camera_rotation, -PI/2, PI/2)
+	# 	camera.rotation.x = camera_rotation
 	
 	if event.is_action_pressed("ui_cancel"):
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -73,59 +73,25 @@ func _input(event):
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _physics_process(delta):
-	if is_pole_planting:
-		handle_pole_plant(delta)
-		return
-	elif is_pole_vaulting:
-		handle_pole_vault(delta)
-		return
-	
-	var input_dir = Vector3.ZERO
-	
-	# Trčanje - desni klik miša
-	is_running = Input.is_action_pressed("run")
-	var current_speed = player_speed * (2.0 if is_running else 1.0)
-	
-	if Input.is_action_pressed("ui_left") or Input.is_action_pressed("move_left"):
-		input_dir.x -= 1
-	if Input.is_action_pressed("ui_right") or Input.is_action_pressed("move_right"):
-		input_dir.x += 1
-	if Input.is_action_pressed("ui_up") or Input.is_action_pressed("move_forward"):
-		input_dir.z -= 1
-	if Input.is_action_pressed("ui_down") or Input.is_action_pressed("move_backward"):
-		input_dir.z += 1
-	
-	# Normalizujemo input vektor
-	if input_dir.length() > 0:
-		input_dir = input_dir.normalized()
-		running_speed = input_dir.length() * current_speed
+	if not is_vaulting:
+		handle_movement()
+		
+		# Sprint check
+		if is_moving() and Input.is_action_pressed("run"):
+			# Vault check (RMB + LMB)
+			if Input.is_action_pressed("jump_mouse"):
+				start_vault()
+		# Normal jump
+		elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("jump") or Input.is_key_pressed(KEY_SPACE):
+			if player.is_on_floor():
+				player.velocity.y = vault_power * 0.5  # Manji skok
+				print("XOArena3D: Normal jump executed")
 	else:
-		running_speed = 0.0
-	
-	# Rotiramo input u odnosu na rotaciju igrača
-	var rotated_input = player.transform.basis * input_dir
-	
-	# Postavljamo brzinu igrača
-	player.velocity.x = rotated_input.x * current_speed
-	player.velocity.z = rotated_input.z * current_speed
-	
-	# Skakanje - SPACE za običan skok, levi klik miša za skakanje s motkom
-	var normal_jump = Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("jump") or Input.is_key_pressed(KEY_SPACE)
-	var pole_vault_jump = Input.is_action_just_pressed("jump_mouse")
-	
-	if normal_jump and player.is_on_floor():
-		# Običan skok
-		player.velocity.y = jump_force
-	elif pole_vault_jump and player.is_on_floor() and running_speed > 3.0:
-		# Skakanje s motkom
-		start_pole_vault()
-	elif pole_vault_jump and player.is_on_floor():
-		# Pokušaj skakanja s motkom bez dovoljne brzine
-		player.velocity.y = jump_force * 0.5  # Manji skok
-	
-	# Primena gravitacije
+		perform_vault(delta)
+
+	# Gravitacija
 	if not player.is_on_floor():
-		player.velocity.y -= 20.0 * delta
+		player.velocity.y += gravity * delta
 	
 	player.move_and_slide()
 	
@@ -136,9 +102,85 @@ func _physics_process(delta):
 		update_score_display()
 	last_position = player.global_position
 	
-	# Proveravamo da li je igrač pao sa platforme (veća platforma)
+	# Proveravamo da li je igrač pao sa platforme
 	if player.global_position.y < -10:
 		reset_player_position()
+
+func handle_movement():
+	var dir = Vector3.ZERO
+	# Samo levo-desno kretanje (X osa)
+	dir.x = Input.get_axis("ui_left", "ui_right")
+	# dir.z = Input.get_axis("ui_up", "ui_down")  # Uklanjamo Z kretanje
+	dir = dir.normalized()
+	
+	var speed = walk_speed
+	if Input.is_action_pressed("run"):
+		speed = run_speed
+	
+	# Uklanjamo rotaciju input-a jer se igrač ne rotira u side-view
+	# var rotated_input = player.transform.basis * dir
+	
+	player.velocity.x = dir.x * speed
+	player.velocity.z = 0.0  # Fiksiramo Z poziciju
+
+func is_moving() -> bool:
+	return Input.get_axis("ui_left", "ui_right") != 0  # Samo X kretanje
+
+func start_vault():
+	if not player.is_on_floor():
+		return
+		
+	is_vaulting = true
+	player.velocity.x *= 0.5
+	# player.velocity.z *= 0.5  # Uklanjamo jer je Z fiksiran
+	
+	# Resetujemo motku u početni položaj pre skoka
+	pole.position = Vector3(3, 1, 0)  # Osiguravamo da je motka ispred igrača
+	pole_angle = 60.0
+	pole.rotation_degrees = Vector3(0, 0, pole_angle)
+	pole.scale = Vector3(1, 1, 1)  # Resetujemo scale
+	
+	print("XOArena3D: Starting vault - angle: ", pole_angle)
+	print("XOArena3D: Pole reset to position: ", pole.position)
+
+func perform_vault(delta):
+	pole_angle -= pole_rotate_speed * delta  # Rotiramo u suprotnom smeru
+	pole.rotation_degrees = Vector3(0, 0, pole_angle)
+	
+	# Vizuelni efekti tokom skakanja
+	update_pole_visual_effects()
+
+	if pole_angle <= -80.0:  # Promenjen uslov za side-view
+		player.velocity.y = vault_power
+		is_vaulting = false
+		
+		# Resetujemo motku u početni položaj
+		pole.rotation_degrees = Vector3(0, 0, 60.0)  # Resetujemo na početni ugao 60°
+		pole.position = Vector3(3, 1, 0)  # Osiguravamo da je motka ispred igrača (X osa)
+		pole.scale = Vector3(1, 1, 1)
+		
+		# Bonus poeni
+		var bonus_points = 200
+		score += bonus_points
+		update_score_display()
+		
+		print("XOArena3D: Vault completed - bonus: ", bonus_points)
+		print("XOArena3D: Pole reset after vault to position: ", pole.position)
+
+func update_pole_visual_effects():
+	# Simuliramo savijanje motke tokom rotacije
+	var bend_amount = sin(deg_to_rad(pole_angle)) * 0.3
+	var compression_scale = 1.0 - abs(sin(deg_to_rad(pole_angle))) * 0.2
+	
+	# Kombinujemo savijanje i kompresiju
+	var final_scale = Vector3(1.0 + bend_amount, compression_scale, 1.0 + bend_amount)
+	pole.scale = final_scale
+	
+	# Timing indikator - zelena boja za optimalan timing
+	if show_timing_indicator and pole_angle <= -70.0 and pole_angle >= -85.0:  # Promenjen uslov za side-view
+		pole.get_node("PoleMesh").material.albedo_color = timing_indicator_color
+	else:
+		pole.get_node("PoleMesh").material.albedo_color = Color(0.8, 0.6, 0.2, 1.0)
 
 func update_score_display():
 	score_label.text = "Poeni: " + str(score)
@@ -148,121 +190,65 @@ func reset_player_position():
 	player.velocity = Vector3.ZERO
 	
 	# Resetujemo motku ako je u animaciji
-	if is_pole_planting or is_pole_vaulting:
-		is_pole_planting = false
-		is_pole_vaulting = false
-		pole.rotation.x = 0.0
-		pole.rotation.z = 0.0
-		pole.rotation.y = 0.0
-		pole.position = Vector3(0, 1, -2)
+	if is_vaulting:
+		print("XOArena3D: Resetting pole from vault state")
+		is_vaulting = false
+		pole.rotation_degrees = Vector3(0, 0, 60.0)  # Resetujemo na početni ugao 60°
+		pole.position = Vector3(3, 1, 0)  # Pomeramo motku 3 jedinice ispred igrača (X osa)
 		pole.scale = Vector3(1, 1, 1)
-		pole_bend_amount = 0.0
-		pole_compression = 0.0
-		pole_elastic_force = 0.0
-		pole_ground_contact = false
+		
+		# Osiguravamo da je motka vidljiva nakon reset-a
+		pole.visible = true
+		pole.get_node("PoleMesh").visible = true
+		pole.get_node("PoleTip").visible = true
+		print("XOArena3D: Pole reset completed")
 	
 	score = max(0, score - 100)  # Gubimo 100 poena za pad
 	update_score_display()
 
-func start_pole_vault():
-	# Započinjemo sa zabijanjem motke
-	is_pole_planting = true
-	pole_plant_progress = 0.0
-	pole_plant_start_pos = pole.position
-	pole_plant_target_pos = pole.position + Vector3(0, -2, 0)  # Zabijamo u zemlju
+func setup_side_view_camera():
+	# Postavljamo kameru sa strane (side-view)
+	camera.position = Vector3(0, 2, 8)  # Kamera iza igrača, malo iznad
+	camera.rotation_degrees = Vector3(0, 0, 0)  # Gleda pravo napred
+	camera_rotation = 0.0  # Resetujemo rotaciju kamere
 	
-	# Rotiramo motku za zabijanje
-	pole.rotation.x = -PI/3  # 60 stepeni napred
+	# Kreirajemo 2D platforme za side-view igru
+	create_2d_platforms()
 
-func handle_pole_plant(delta):
-	pole_plant_progress += delta * 3.0  # Brzina zabijanja
+func create_2d_platforms():
+	# Dodajemo platforme na različitim X pozicijama za 2D side-view
+	var platform_positions = [
+		Vector3(10, 0, 0),
+		Vector3(20, 2, 0),
+		Vector3(30, 0, 0),
+		Vector3(40, 4, 0),
+		Vector3(50, 1, 0),
+		Vector3(60, 3, 0),
+		Vector3(70, 0, 0),
+		Vector3(80, 5, 0),
+		Vector3(90, 2, 0),
+		Vector3(100, 0, 0)
+	]
 	
-	# Proveravamo da li motka dodiruje zemlju
-	var pole_tip_y = pole.global_position.y - 2.0  # Pozicija vrha motke
-	pole_ground_contact = pole_tip_y <= 0.5  # Dodiruje zemlju
-	
-	if pole_ground_contact:
-		# Simuliramo kompresiju motke
-		pole_compression = min(pole_compression + delta * 2.0, pole_flexibility)
-		pole_elastic_force = pole_compression * 5.0  # Elastična sila
-	else:
-		# Motka se oporavlja
-		pole_compression = max(pole_compression - delta * 1.0, 0.0)
-		pole_elastic_force = 0.0
-	
-	if pole_plant_progress >= 1.0:
-		# Završavamo zabijanje i počinjemo skakanje
-		is_pole_planting = false
-		is_pole_vaulting = true
-		pole_vault_start_pos = player.global_position
-		pole_vault_target = player.global_position + player.transform.basis.z * -pole_vault_speed
-		pole_vault_progress = 0.0
-		pole_bend_amount = 0.0
-		pole_compression = 0.0
-		pole_elastic_force = 0.0
-		return
-	
-	# Animacija zabijanja motke
-	var t = pole_plant_progress
-	var current_pole_pos = pole_plant_start_pos.lerp(pole_plant_target_pos, t)
-	pole.position = current_pole_pos
-	
-	# Dodajemo savijanje motke tokom zabijanja
-	pole_bend_amount = t * 0.3 + pole_compression * 0.5  # Kombinujemo animaciju i kompresiju
-	update_pole_bend()
+	for i in range(platform_positions.size()):
+		var platform = create_platform(platform_positions[i], "Platform" + str(i))
+		get_node(".").add_child(platform)
 
-func handle_pole_vault(delta):
-	pole_vault_progress += delta * 2.0  # Brzina animacije
+func create_platform(position: Vector3, name: String) -> StaticBody3D:
+	var platform = StaticBody3D.new()
+	platform.name = name
+	platform.position = position
 	
-	if pole_vault_progress >= 1.0:
-		# Završavamo skakanje s motkom
-		is_pole_vaulting = false
-		pole.rotation.x = 0.0  # Vraćamo motku u normalnu poziciju
-		pole.rotation.z = 0.0  # Resetujemo rotaciju
-		pole.position = Vector3(0, 1, -2)  # Resetujemo poziciju motke
-		pole.scale = Vector3(1, 1, 1)  # Resetujemo scale
-		pole_bend_amount = 0.0
-		player.global_position = pole_vault_target
-		player.velocity = Vector3.ZERO
-		score += 200  # Bonus poeni za skakanje s motkom
-		update_score_display()
-		return
+	var mesh = CSGBox3D.new()
+	mesh.size = Vector3(3, 1, 10)  # Široka platforma za side-view
+	mesh.material = StandardMaterial3D.new()
+	mesh.material.albedo_color = Color(0.4, 0.6, 0.4, 1)
+	platform.add_child(mesh)
 	
-	# Interpolacija pozicije
-	var t = pole_vault_progress
-	var current_pos = pole_vault_start_pos.lerp(pole_vault_target, t)
+	var collision = CollisionShape3D.new()
+	var shape = BoxShape3D.new()
+	shape.size = Vector3(3, 1, 10)
+	collision.shape = shape
+	platform.add_child(collision)
 	
-	# Dodajemo paraboličnu putanju (visina)
-	var height_offset = sin(t * PI) * pole_vault_height
-	current_pos.y = pole_vault_start_pos.y + height_offset
-	
-	# Dodajemo savijanje motke tokom skakanja
-	pole_bend_amount = sin(t * PI) * 0.5  # Maksimalno savijanje 50%
-	update_pole_bend()
-	
-	player.global_position = current_pos
-
-func update_pole_bend():
-	# Simuliramo savijanje motke menjanjem scale-a i pozicije
-	var bend_scale = 1.0 + pole_bend_amount
-	var compression_scale = 1.0 - pole_compression * 0.3  # Kompresija skraćuje motku
-	
-	# Kombinujemo savijanje i kompresiju
-	var final_scale = Vector3(bend_scale, compression_scale, bend_scale)
-	pole.scale = final_scale
-	
-	# Dodajemo rotaciju za realističniji efekat
-	pole.rotation.z = pole_bend_amount * 0.2
-	
-	# Dodajemo oscilaciju tokom kompresije
-	if pole_ground_contact and pole_compression > 0.1:
-		pole.rotation.y = sin(Time.get_ticks_msec() * 0.01) * pole_compression * 0.1
-	
-	# Vizuelni indikator kompresije
-	if pole_compression > 0.2:
-		# Motka postaje crvenija tokom kompresije
-		var compression_color = Color(1.0, 1.0 - pole_compression, 1.0 - pole_compression, 1.0)
-		pole.get_node("PoleMesh").material.albedo_color = compression_color
-	else:
-		# Vraćamo originalnu boju
-		pole.get_node("PoleMesh").material.albedo_color = Color(0.8, 0.6, 0.2, 1.0)
+	return platform
